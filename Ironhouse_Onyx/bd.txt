@@ -1,0 +1,93 @@
+CREATE DATABASE IF NOT EXISTS ironhouse_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE ironhouse_db;
+
+-- 1. Tabla de Usuarios del Sistema (Roles: Administrador y Recepcionista)
+CREATE TABLE usuarios (
+    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_completo VARCHAR(100) NOT NULL,
+    usuario VARCHAR(50) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    rol ENUM('Administrador', 'Recepcionista') NOT NULL,
+    activo TINYINT(1) DEFAULT 1,
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Catálogo de Planes y Precios (Solo modificable por Administrador)
+CREATE TABLE cat_planes (
+    id_plan INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_plan VARCHAR(50) NOT NULL,
+    duracion_dias INT NOT NULL,
+    es_pareja TINYINT(1) DEFAULT 0,
+    precio DECIMAL(10,2) NOT NULL,
+    activo TINYINT(1) DEFAULT 1
+);
+
+-- 3. Tabla de Socios (Con contacto de emergencia y parentesco)
+CREATE TABLE socios (
+    id_socio INT AUTO_INCREMENT PRIMARY KEY,
+    folio_socio VARCHAR(20) UNIQUE,
+    nombre_completo VARCHAR(120) NOT NULL,
+    fecha_nacimiento DATE NOT NULL,
+    celular VARCHAR(20) NOT NULL,
+    correo VARCHAR(100),
+    emergencia_nombre VARCHAR(120) NOT NULL,
+    emergencia_telefono VARCHAR(20) NOT NULL,
+    emergencia_parentesco VARCHAR(50) NOT NULL,
+    id_plan_actual INT NULL,
+    fecha_inicio_membresia DATE NULL,
+    fecha_vencimiento DATE NULL,
+    id_socio_pareja INT NULL,
+    estatus_registro ENUM('Activo', 'Baja') DEFAULT 'Activo',
+    fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_plan_actual) REFERENCES cat_planes(id_plan)
+);
+
+-- 4. Tabla de Pagos y Renovaciones (Para recibos PDF y reportes de ingresos)
+CREATE TABLE pagos (
+    id_pago INT AUTO_INCREMENT PRIMARY KEY,
+    folio_recibo VARCHAR(30) NOT NULL UNIQUE,
+    id_socio INT NOT NULL,
+    id_socio_secundario INT NULL, -- Por si es plan de parejas
+    id_plan INT NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    metodo_pago ENUM('Efectivo', 'Tarjeta', 'Transferencia') NOT NULL,
+    fecha_pago DATETIME DEFAULT CURRENT_TIMESTAMP,
+    vigencia_inicio DATE NOT NULL,
+    vigencia_fin DATE NOT NULL,
+    id_usuario_cobro INT NOT NULL,
+    FOREIGN KEY (id_socio) REFERENCES socios(id_socio),
+    FOREIGN KEY (id_plan) REFERENCES cat_planes(id_plan),
+    FOREIGN KEY (id_usuario_cobro) REFERENCES usuarios(id_usuario)
+);
+
+-- 5. Bitácora de Actividades (Auditoría por usuario)
+CREATE TABLE bitacora (
+    id_bitacora INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    modulo VARCHAR(50) NOT NULL,
+    accion VARCHAR(255) NOT NULL,
+    fecha_hora DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
+);
+
+-- ==========================================================
+-- DATOS INICIALES PARA PROBAR EL SISTEMA DE INMEDIATO
+-- ==========================================================
+
+-- Usuarios iniciales (Contraseña en texto plano para pruebas: '123456')
+INSERT INTO usuarios (nombre_completo, usuario, password_hash, rol) VALUES
+('Ángel Vargas Jiménez (Gerente)', 'admin', '123456', 'Administrador'),
+('Recepcionista Turno Matutino', 'recepcion1', '123456', 'Recepcionista');
+
+-- Los 4 planes oficiales solicitados por The Iron House
+INSERT INTO cat_planes (nombre_plan, duracion_dias, es_pareja, precio) VALUES
+('Visita Individual (Día)', 1, 0, 60.00),
+('Mensualidad Individual', 30, 0, 450.00),
+('Mensualidad Parejas', 30, 1, 800.00),
+('Plan Trimestral', 90, 0, 1200.00);
+
+-- 3 Socios de prueba para ver el Semáforo en acción (Verde, Amarillo y Rojo)
+INSERT INTO socios (folio_socio, nombre_completo, fecha_nacimiento, celular, correo, emergencia_nombre, emergencia_telefono, emergencia_parentesco, id_plan_actual, fecha_inicio_membresia, fecha_vencimiento) VALUES
+('IH-0001', 'Carlos Mendoza Ríos', '1998-05-14', '5512345678', 'carlos@mail.com', 'María Ríos', '5587654321', 'Madre', 2, CURDATE() - INTERVAL 10 DAY, CURDATE() + INTERVAL 20 DAY), -- VERDE (Faltan 20 días)
+('IH-0002', 'Laura Gómez Torres', '2001-11-02', '5523456789', 'laura@mail.com', 'Pedro Gómez', '5598765432', 'Padre', 2, CURDATE() - INTERVAL 28 DAY, CURDATE() + INTERVAL 2 DAY),  -- AMARILLO (Faltan 2 días)
+('IH-0003', 'Roberto Sánchez Vega', '1995-08-20', '5534567890', 'roberto@mail.com', 'Ana Vega', '5576543210', 'Esposa', 2, CURDATE() - INTERVAL 35 DAY, CURDATE() - INTERVAL 5 DAY); -- ROJO (Vencido hace 5 días)
